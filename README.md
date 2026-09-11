@@ -11,9 +11,10 @@ review where you already review; the agent answers where you asked.
 ```
 
 ```
-↳ Claude: Underlined on both boards, matching the Details treatment exactly —
-  full ink with an underline, rust on hover. Change was at 70% opacity, which
-  would have read washed out once underlined, so it's at 100% now.
+↳ Claude: Underlined on both boards, matching the existing link treatment —
+  body-text colour with an underline, accent colour on hover. Change was at
+  70% opacity, which would have read washed out once underlined, so it's at
+  100% now.
 ```
 
 Built for a solo developer working with a designer in a shared file, and used

@@ -1,6 +1,6 @@
 ---
 name: figma-review
-description: Sweep Figma review comments addressed to Claude, act on them, and reply in-thread. Use when the user says "check Figma comments", "sweep the Figma review", "I left you comments in Figma", or runs /loop over a Figma review.
+description: Sweep Figma review comments addressed to Claude, act on them, and reply in-thread. Use when the user says "catch up on Figma comments", "catch up on comments", "check Figma comments", "sweep the Figma review", "I left you comments in Figma", or runs /loop over a Figma review.
 ---
 
 # Figma review loop
@@ -182,12 +182,21 @@ The file key is the segment after `/design/` in the URL:
 and real notifications. Set `FIGMA_COMMENT_TOKEN` to its token; replies and acks
 then post under it while reads stay on yours.
 
-- A **Viewer** seat is enough — viewers can comment.
-- The account must be granted **access to the file**, or reads 403 regardless of
-  scopes.
-- Prefer a per-organization account over a shared one. A shared account would
-  need standing access to every user's private files; a per-org account grants
-  access per file and can be revoked independently.
+1. An email address for the agent — a plus address (`you+claude@…`) on most
+   providers; a catch-all or free mailbox otherwise.
+2. A Figma account on that address, **named with "Claude" in it**. The script
+   recognises the agent by `/claude/i` on the display name; any other name is
+   treated as a person and every reply gets badged.
+3. Share the file with it, *can view*. A **Viewer** seat is enough — viewers
+   can comment. Without file access, reads 403 regardless of scopes.
+4. A token generated on *that* account, same four scopes.
+
+`reply` prints `posting as: <name>` — with a "badged" suffix if the name check
+failed. That's the setup check.
+
+Prefer a per-organization account over a shared one. A shared account would
+need standing access to every user's private files; a per-org account grants
+access per file and can be revoked independently.
 
 Token scopes, both tiers: `current_user:read`, `file_comments:read`,
 `file_comments:write`, `file_content:read`. Nothing else. **Watch the expiration

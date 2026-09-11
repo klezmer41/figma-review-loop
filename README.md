@@ -20,6 +20,20 @@ Built for a solo developer working with a designer in a shared file, and used
 daily for weeks before publishing. It is a small Node script plus a skill; no
 server, no daemon, no framework.
 
+## How you use it
+
+1. Review in Figma the way you already do. Leave comments on frames as you go,
+   and tag `@claude` in the ones you want acted on.
+2. In Claude Code, say **"please catch up on Figma comments"** (or run
+   `/figma-review`).
+3. Claude lists what's new, works through each thread — reads the frame, makes
+   the change in code or in the Figma file — and replies in-thread.
+4. Reply in Figma to anything that isn't right. On the next sweep those come up
+   first, as FOLLOW-UP.
+
+That's the whole loop. Nothing runs in the background: a sweep happens when
+you ask for one, or on `/loop 10m /figma-review` during a live review session.
+
 ## What it does
 
 | Command | |
@@ -62,8 +76,9 @@ dedicated account:
 | you (the fallback) | `You: [@claude] …` | no |
 
 The script checks `GET /v1/me` and badges automatically when it's posting as a
-human. Prefer a per-organisation account over a shared one — a shared account
-would need standing access to every user's private files.
+human — an account whose display name contains "Claude" is the agent; anything
+else is a person. Prefer a per-organisation account over a shared one — a
+shared account would need standing access to every user's private files.
 
 ## On a shared file: whose comments get actioned
 
@@ -102,14 +117,32 @@ intent, not a command channel.
 **Tier 1 — about ten minutes.** A dedicated account, for clean attribution and
 real notifications.
 
-1. Create a Figma account for the agent (`you+claude@…` works on most mail
-   providers — no admin needed). A **Viewer** seat can comment; verified.
-2. Give it access to the file, or reads 403 regardless of scopes.
-3. Generate a token on *that* account, same four scopes, and add it:
+1. **Create an email address for Claude.** A plus address is enough:
+   `you+claude@gmail.com` lands in your own inbox, and Figma treats it as a
+   separate person. Gmail, Outlook.com, iCloud and Fastmail all support this;
+   if your provider doesn't, a catch-all on your own domain or a free mailbox
+   works. No admin needed — the address only has to receive Figma's
+   verification email.
+2. **Create the Figma account.** Sign up at figma.com with that address, in a
+   private window so you stay logged in as yourself. **Put "Claude" in the
+   name** — plain `Claude` is fine. The script recognises the agent by that
+   word in the display name; without it, every reply is badged as if a person
+   posted it.
+3. **Add Claude to the file.** Share → the agent's email → *can view*. A
+   **Viewer** seat can comment; verified. Do this per file, or add the account
+   to the team or project as a viewer. Skip it and reads 403 regardless of
+   scopes.
+4. **Generate a token on Claude's account.** Log in as the agent → Settings →
+   Security → *Personal access tokens*, same four scopes as tier 0, same
+   expiration warning. Add it alongside your own:
 
    ```json
    { "env": { "FIGMA_COMMENT_TOKEN": "figd_…" } }
    ```
+
+5. **Check it.** Reply to any thread; the script prints `posting as: Claude`
+   with no "badged" suffix, and in Figma the reply renders under the agent's
+   name. If it says badged, step 2's name check failed.
 
 Reads stay on your token; replies and acks post under the agent's. Kept
 separate deliberately — the agent account may see less, so a permissions gap

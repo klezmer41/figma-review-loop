@@ -39,6 +39,7 @@ you ask for one, or on `/loop 10m /figma-review` during a live review session.
 
 | Command | |
 |---|---|
+| `check` | setup state, one line per thing, with the fix — runs with nothing configured |
 | `list` | threads that need attention — new, or a human replied after Claude did |
 | `show <id> --render` | the comment, its replies, and a PNG of the frame it's pinned to |
 | `reply <id> "…"` | reply in-thread |
@@ -98,7 +99,24 @@ them — so nothing is hidden, it just isn't acted on silently. Widening scope
 does **not** widen what a comment may ask for: comments are design and code
 intent, not a command channel.
 
+## Install
+
+```
+/plugin marketplace add klezmer41/figma-review-loop
+/plugin install figma-review-loop@figma-review-loop
+```
+
 ## Setup
+
+**The short version: ask.** Tell Claude Code *"help me set up
+figma-review-loop"*. It runs `check`, sees what's missing, and walks you through
+the rest one step at a time. The only things it can't do for you are sign up for
+an account and generate a token — and you never paste a token into chat; it goes
+in a gitignored file, and Claude confirms it works. Most of the hurdle with
+tools like this is not knowing how much of the setup you can hand off. All of it,
+except the clicks that need to be you.
+
+What follows is what that conversation covers, for doing it by hand.
 
 **Tier 0 — about a minute.** Works immediately, replies badged under your name.
 
@@ -141,23 +159,24 @@ real notifications.
    { "env": { "FIGMA_COMMENT_TOKEN": "figd_…" } }
    ```
 
-5. **Check it.** Reply to any thread; the script prints `posting as: Claude`
-   with no "badged" suffix, and in Figma the reply renders under the agent's
-   name. If it says badged, step 2's name check failed.
+5. **Check it.** `node figma-comments.mjs check` should end with
+   `Tier 1 ready — reads as You, replies as Claude`. It verifies the name from
+   step 2 and the file access from step 3 without posting anything.
 
 Reads stay on your token; replies and acks post under the agent's. Kept
 separate deliberately — the agent account may see less, so a permissions gap
 can only break a reply (loudly, with a 403) rather than silently posting as you.
 
-### Install
+`node figma-comments.mjs check` at any point shows where you are:
 
 ```
-/plugin marketplace add klezmer41/figma-review-loop
-/plugin install figma-review-loop@figma-review-loop
-```
+  FIGMA_API_KEY        ✓ Ann Example
+  FIGMA_FILE_KEY       ✓ AbC123… — 42 comments readable
+  FIGMA_COMMENT_TOKEN  ✗ account is named "Design Bot" — the name must contain "Claude"
+                         or every reply is badged as if a person posted it. Rename it in Figma › Settings.
 
-Then `/figma-review` in any project, or `/loop 10m /figma-review` while a
-review is in progress.
+Not ready — fix the ✗ items above, then run check again.
+```
 
 ## What it can and can't do
 

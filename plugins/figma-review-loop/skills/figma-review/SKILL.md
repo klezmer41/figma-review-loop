@@ -1,6 +1,6 @@
 ---
 name: figma-review
-description: Sweep Figma review comments addressed to Claude, act on them, and reply in-thread. Use when the user says "catch up on Figma comments", "catch up on comments", "check Figma comments", "sweep the Figma review", "I left you comments in Figma", or runs /loop over a Figma review.
+description: Sweep Figma review comments addressed to Claude, act on them, and reply in-thread. Use when the user says "catch up on Figma comments", "catch up on comments", "check Figma comments", "sweep the Figma review", "I left you comments in Figma", or runs /loop over a Figma review. Also use when they ask to set up figma-review-loop, set up Figma comments, or continue setting it up.
 ---
 
 # Figma review loop
@@ -82,6 +82,7 @@ them when the author line is uninformative.
 ## Running a sweep
 
 ```bash
+node figma-comments.mjs check                   # setup state — runs with nothing configured
 node figma-comments.mjs list                    # needs attention (your comments only)
 node figma-comments.mjs list --all              # include settled threads
 node figma-comments.mjs list --from ann,bob     # opt in to collaborators
@@ -204,6 +205,26 @@ field — it defaults to 1 day.**
 
 Env in `settings.local.json` is read at session start; a new token needs a fresh
 session.
+
+### Walking someone through setup
+
+When the user asks for help setting up, or any command fails on configuration,
+start with `node figma-comments.mjs check`. It runs with nothing configured
+and reports each variable with the step that fixes it. Then:
+
+- **Do the parts that are yours.** Confirm `.claude/settings.local.json` is
+  gitignored before suggesting a token goes there — add it to `.gitignore` if
+  not. Write the `env` block with the three keys and empty values so the user
+  only has to paste. Re-run `check` after every change.
+- **Hand over the parts that are theirs, one at a time, with the exact
+  clicks.** Creating the email, signing up for Figma, sharing the file,
+  generating each token. Never ask for a token in chat and never print one —
+  they paste it into the file themselves.
+- **A new token needs a new session.** After they add one, tell them to open a
+  fresh session and say "continue setting up figma-review-loop"; pick up from
+  `check`.
+- **Tier 0 working is a stopping point.** Offer tier 1 and say what it buys
+  (replies from an account named Claude; notifications); don't require it.
 
 ## Pairing with /loop
 

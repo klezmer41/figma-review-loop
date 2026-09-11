@@ -26,10 +26,12 @@
  *                        FIGMA_API_KEY, in which case replies are badged.
  *
  * USAGE
+ *   node figma-comments.mjs check                — verify setup; runs with nothing configured
  *   node figma-comments.mjs list  [--from me|any|handle,handle] [--marker @claude] [--all]
  *   node figma-comments.mjs show  <comment_id> [--render]
  *   node figma-comments.mjs reply <comment_id> "message"
  *   node figma-comments.mjs ack   <comment_id> [:shortcode:]
+ *   node figma-comments.mjs note  <node_id> "message" [--at x,y]
  *
  *   --file <key>  overrides FIGMA_FILE_KEY. The key is the segment after
  *                 /design/ in a Figma URL:
@@ -48,6 +50,8 @@ function argValue(flag) {
 const TOKEN = process.env.FIGMA_API_KEY
 const FILE_KEY = argValue('--file') || process.env.FIGMA_FILE_KEY
 const API = 'https://api.figma.com/v1'
+
+const [cmd, ...args] = process.argv.slice(2)
 
 /**
  * Optional second token belonging to a dedicated Claude account, used for
@@ -91,16 +95,19 @@ const BADGE = '[@claude]'
  */
 const ACK_EMOJI = ':white_check_mark:'
 
-if (!TOKEN) {
+// `check` is the one command that must run with nothing configured — it's how a
+// fresh install finds out what's missing. Everything else needs both.
+if (!TOKEN && cmd !== 'check') {
   console.error(
     'FIGMA_API_KEY is not set.\n' +
     'Create a token at Figma › Settings › Security › personal access tokens with\n' +
-    'scopes: current_user:read, file_comments:read, file_comments:write, file_content:read'
+    'scopes: current_user:read, file_comments:read, file_comments:write, file_content:read\n' +
+    'Run `check` to see the full setup state.'
   )
   process.exit(1)
 }
 
-if (!FILE_KEY) {
+if (!FILE_KEY && cmd !== 'check') {
   console.error(
     'No Figma file specified. Set FIGMA_FILE_KEY or pass --file <key>.\n' +
     'The key is the segment after /design/ in the URL:\n' +
@@ -453,17 +460,116 @@ async function cmdNote(args) {
   console.log(`posted note ${created.id} on node ${nodeId} (as ${handle || 'unknown'})`)
 }
 
+/**
+ * Setup check. Reports each env var: set or not, token accepted or not, file
+ * visible or not, and — for the agent account — whether its name passes the
+ * Claude check. Every ✗ is followed by the step that fixes it, so a fresh
+ * install can be walked to working by reading this output alone.
+ *
+ * Never prints a token. Exit 0 when reads work and nothing that IS set is
+ * broken; 1 otherwise.
+ */
+async function cmdCheck() {
+  const probe = async (path, token) => {
+    const res = await fetch(`${API}${path}`, { headers: { 'X-Figma-Token': token } })
+    return { status: res.status, data: res.ok ? await res.json() : null }
+  }
+  const row = (name, mark, text) => console.log(`  ${name.padEnd(21)}${mark} ${text}`)
+  const hint = (text) => console.log(`${' '.repeat(25)}${text}`)
+  const fileProblem = (status, handle) =>
+    status === 403 ? `${handle} can't see ${FILE_KEY} — share the file with that account (can view)` :
+    status === 404 ? `no file with key ${FILE_KEY} — it's the segment after /design/ in the URL` :
+    `Figma API ${status} reading ${FILE_KEY}`
+
+  let ready = true   // tier 0: reads work
+  let broken = false // something that is set doesn't work
+
+  console.log('figma-review-loop check\n')
+
+  let reader = null
+  if (!TOKEN) {
+    ready = false
+    row('FIGMA_API_KEY', '✗', 'not set')
+    hint('Figma › Settings › Security › Personal access tokens. Scopes: current_user:read,')
+    hint('file_comments:read, file_comments:write, file_content:read. Watch the expiration.')
+  } else {
+    const me = await probe('/me', TOKEN)
+    if (me.status === 200) {
+      reader = me.data.handle
+      row('FIGMA_API_KEY', '✓', reader)
+    } else {
+      ready = false
+      broken = true
+      row('FIGMA_API_KEY', '✗', `rejected (${me.status}) — expired, revoked, or missing current_user:read`)
+    }
+  }
+
+  if (!FILE_KEY) {
+    ready = false
+    row('FIGMA_FILE_KEY', '✗', 'not set')
+    hint('The segment after /design/ in the file URL: figma.com/design/<FILE_KEY>/Name')
+  } else if (!reader) {
+    row('FIGMA_FILE_KEY', '–', `${FILE_KEY} — can't verify until FIGMA_API_KEY works`)
+  } else {
+    const f = await probe(`/files/${FILE_KEY}/comments`, TOKEN)
+    if (f.status === 200) {
+      row('FIGMA_FILE_KEY', '✓', `${FILE_KEY} — ${f.data.comments.length} comments readable`)
+    } else {
+      ready = false
+      broken = true
+      row('FIGMA_FILE_KEY', '✗', fileProblem(f.status, reader))
+    }
+  }
+
+  const agentToken = process.env.FIGMA_COMMENT_TOKEN
+  let agent = null
+  if (!agentToken) {
+    row('FIGMA_COMMENT_TOKEN', '–', `not set (optional) — replies post as you, badged ${BADGE}`)
+    hint('For replies from a Claude account: create an email for it, sign up on Figma with')
+    hint('"Claude" in the name, share the file with it (can view), make a token on that account.')
+  } else {
+    const me = await probe('/me', agentToken)
+    if (me.status !== 200) {
+      broken = true
+      row('FIGMA_COMMENT_TOKEN', '✗', `rejected (${me.status}) — expired, revoked, or missing current_user:read`)
+    } else if (!isClaudeAccount(me.data.handle)) {
+      broken = true
+      row('FIGMA_COMMENT_TOKEN', '✗', `account is named "${me.data.handle}" — the name must contain "Claude"`)
+      hint('or every reply is badged as if a person posted it. Rename it in Figma › Settings.')
+    } else {
+      agent = me.data.handle
+      row('FIGMA_COMMENT_TOKEN', '✓', agent)
+      if (FILE_KEY) {
+        const f = await probe(`/files/${FILE_KEY}/comments`, agentToken)
+        if (f.status !== 200) {
+          broken = true
+          agent = null
+          hint(`✗ ${fileProblem(f.status, me.data.handle)}`)
+        }
+      }
+    }
+  }
+
+  console.log()
+  if (!ready || broken) {
+    console.log('Not ready — fix the ✗ items above, then run check again.')
+    process.exit(1)
+  }
+  console.log(agent
+    ? `Tier 1 ready — reads as ${reader}, replies as ${agent}.`
+    : `Tier 0 ready — reads and replies as ${reader}, replies badged ${BADGE}.`)
+}
+
 function valueFor(args, flag) {
   const i = args.indexOf(flag)
   return i !== -1 ? args[i + 1] : null
 }
 
-const [cmd, ...args] = process.argv.slice(2)
-const commands = { list: cmdList, show: cmdShow, reply: cmdReply, ack: cmdAck, note: cmdNote }
+const commands = { check: cmdCheck, list: cmdList, show: cmdShow, reply: cmdReply, ack: cmdAck, note: cmdNote }
 
 if (!commands[cmd]) {
   console.log(
-    'commands: list | show <id> [--render] | reply <id> "message" | ack <id> [:emoji:]\n' +
+    'commands: check | list | show <id> [--render] | reply <id> "message" | ack <id> [:emoji:]\n' +
     '          note <node_id> "message" [--at x,y]'
   )
   process.exit(cmd ? 1 : 0)

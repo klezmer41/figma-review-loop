@@ -1,0 +1,8 @@
+{
+  "name": "figma-review-loop",
+  "description": "Sweep Figma review comments addressed to Claude, act on them, and reply in-thread.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Scott Hildebrand"
+  }
+}
